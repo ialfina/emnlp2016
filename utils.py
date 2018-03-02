@@ -47,18 +47,26 @@ class PTBModel(object):
       inputs = tf.nn.dropout(inputs, config.keep_prob)
 
     inputs = [tf.squeeze(input_, [1])
-              for input_ in tf.split(1, num_steps, inputs)]
-    outputs, state = tf.nn.rnn(cell, inputs, initial_state=self._initial_state)
+            #for input_ in tf.split(1, num_steps, inputs)]. # error - deprecated
+              for input_ in tf.split(inputs, num_steps, axis=1)] # the new method 
 
-    output = tf.reshape(tf.concat(1, outputs), [-1, size])
+    #outputs, state = tf.nn.rnn(cell, inputs, initial_state=self._initial_state) # error - deprecated
+    outputs, state = tf.nn.static_rnn(cell, inputs, initial_state=self._initial_state) # the new method 
+
+    #output = tf.reshape(tf.concat(1, outputs), [-1, size]) # error - deprecated
+    output = tf.reshape(tf.concat(outputs, 1), [-1, size])
+    
     softmax_w = tf.get_variable("softmax_w", [size, vocab_size])
     softmax_b = tf.get_variable("softmax_b", [vocab_size])
     logits = tf.matmul(output, softmax_w) + softmax_b
-    loss = tf.nn.seq2seq.sequence_loss_by_example(
+
+    #loss = tf.nn.seq2seq.sequence_loss_by_example( # error - deprecated
+    loss = tf.contrib.legacy_seq2seq.sequence_loss_by_example( # the new method 
         [logits],
         [tf.reshape(self._targets, [-1])],
         [tf.ones([batch_size * num_steps])])
     cost = tf.reduce_sum(loss) / batch_size
+
     self._cost = loss
     self._final_state = state
 
@@ -71,6 +79,7 @@ class PTBModel(object):
                                       config.max_grad_norm)
     optimizer = tf.train.GradientDescentOptimizer(self.lr)
     self._train_op = optimizer.apply_gradients(zip(grads, tvars))
+
 
   def assign_lr(self, session, lr_value):
     session.run(tf.assign(self.lr, lr_value))
@@ -109,14 +118,13 @@ def _build_vocab(filename):
 
   counter = collections.Counter(data)
   count_pairs = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
-
   words, _ = list(zip(*count_pairs))
   word_to_id = dict(zip(words, range(len(words))))
-
   return word_to_id
 
 
 def _read_words(filename):
+
   with open_file(filename) as f:
     return f.read().replace('\n', '<eos>').split()
   
@@ -230,7 +238,8 @@ def run_epoch(session, m, data, eval_op, verbose=False):
     iters += m.num_steps
 
     if verbose and step % (epoch_size // 10) == 10:
-      print("%.3f perplexity: %.3f speed: %.0f wps" %
+
+      print("step/epoch_size: %.3f, perplexity: %.3f, speed: %.0f wps" %
             (step * 1.0 / epoch_size, np.exp(costs / iters),
              iters * m.batch_size / (time.time() - start_time)))
 

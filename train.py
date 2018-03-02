@@ -87,7 +87,7 @@ def train():
     with tf.variable_scope("model", reuse=True, initializer=initializer):
       mvalid = PTBModel(is_training=False, config=eval_config)
 
-    tf.initialize_all_variables().run()
+    tf.global_variables_initializer().run() # the new method
     if FLAGS.model_path:
       saver = tf.train.Saver()
 
